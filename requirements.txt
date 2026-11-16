@@ -1,0 +1,5 @@
+streamlit==1.66.0
+streamlit-authenticator==0.4.2
+akshare==1.16.98
+pandas==2.2.3
+numpy==2.1.3
