@@ -89,7 +89,7 @@ TEXT_FIELDS = [
 
 
 # ========== 3. 数据层（替换成你的实际取数）==========
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=180)
 def load_data() -> pd.DataFrame:
     df = ak.stock_zh_a_spot_tx()
     return df
@@ -194,15 +194,36 @@ def filter_stocks(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
 # ========== 6. 界面主流程 ==========
 st.title("选股筛选器")
 
-df = add_pre_close(load_data())
+# 1) 先渲染筛选控件，这一步不加载数据
 filters = render_filters()
 
-st.write(f"当前数据共 {len(df)} 只股票")
+# 2) 按钮行
+col_run, col_refresh = st.columns([1, 1])
+with col_run:
+    run = st.button("开始筛选", type="primary")
+with col_refresh:
+    refresh = st.button("强制刷新数据")
 
-if st.button("开始筛选", type="primary"):
-    result = filter_stocks(df, filters)
-    st.write(f"筛选结果：{len(result)} 只")
+# 3) 手动刷新：清缓存 + 清上次结果
+if refresh:
+    load_data.clear()
+    st.session_state.pop("last_result", None)
+    st.session_state.pop("last_total", None)
+    st.info("缓存已清除，请点击「开始筛选」重新拉取数据。")
 
+# 4) 只有点击「开始筛选」才加载数据
+if run:
+    with st.spinner("正在加载行情数据并筛选，请稍候..."):
+        df = add_pre_close(load_data())
+        result = filter_stocks(df, filters)
+    st.session_state["last_result"] = result
+    st.session_state["last_total"] = len(df)
+
+# 5) 展示上次结果（这样改条件、点其他控件时结果不会消失）
+if "last_result" in st.session_state:
+    result = st.session_state["last_result"]
+    total = st.session_state["last_total"]
+    st.caption(f"数据共 {total} 只，筛选结果 {len(result)} 只")
     if result.empty:
         st.info("没有股票满足当前条件，请放宽筛选范围。")
     else:
@@ -214,3 +235,5 @@ if st.button("开始筛选", type="primary"):
             file_name="filtered_stocks.csv",
             mime="text/csv",
         )
+else:
+    st.info("设置筛选条件后，点击「开始筛选」。")
