@@ -87,6 +87,16 @@ TEXT_FIELDS = [
     {"key": "name", "label": "名称关键字"},
 ]
 
+# 不在 FIELD_GROUPS 里、但需要展示的列
+EXTRA_LABELS = {
+    "code": "代码",
+    "name": "名称",
+    "pre_close": "昨收(元)",
+    "stock_type": "证券类型",
+    "state": "行情状态",
+}
+
+
 
 # ========== 3. 数据层（替换成你的实际取数）==========
 @st.cache_data(ttl=180)
@@ -155,7 +165,32 @@ def render_filters() -> dict:
 
     return filters
 
+def to_display_df(df: pd.DataFrame, cols: list | None = None, convert_units: bool = True) -> pd.DataFrame:
+    """
+    把原始缩写列名转成中文表头，并按 FIELD_GROUPS 的 scale 做单位换算。
+    convert_units=True 时，turnover/资金流等列会换算成“万元”，与筛选输入单位一致。
+    """
+    if cols is None:
+        cols = list(df.columns)
 
+    out = df[cols].copy()
+    rename_map = dict(EXTRA_LABELS)
+
+    for fields in FIELD_GROUPS.values():
+        for f in fields:
+            key = f["key"]
+            if key not in out.columns:
+                continue
+
+            # 单位换算（与筛选界面的单位保持一致）
+            if convert_units and f["scale"] != 1:
+                out[key] = pd.to_numeric(out[key], errors="coerce") / f["scale"]
+
+            unit = f"({f['unit']})" if f["unit"] else ""
+            rename_map[key] = f["label"] + unit
+
+    return out.rename(columns=rename_map)
+    
 # ========== 5. 动态筛选 ==========
 def filter_stocks(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     out = df.copy()
@@ -224,14 +259,25 @@ if "last_result" in st.session_state:
     result = st.session_state["last_result"]
     total = st.session_state["last_total"]
     st.caption(f"数据共 {total} 只，筛选结果 {len(result)} 只")
+
     if result.empty:
         st.info("没有股票满足当前条件，请放宽筛选范围。")
     else:
-        show_cols = [c for c in ["code", "name", "zxj", "zdf", "hsl", "pe_ttm", "pn", "ltsz", "pre_close"] if c in result.columns]
-        st.dataframe(result[show_cols], use_container_width=True, hide_index=True)
+        show_cols = [
+            c for c in [
+                "code", "name", "zxj", "zdf", "hsl", "pe_ttm", "pn",
+                "ltsz", "turnover", "zljlr", "pre_close",
+            ] if c in result.columns
+        ]
+
+        # 展示层：中文表头 + 单位换算
+        display_df = to_display_df(result, show_cols)
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+        # 导出也用同一份展示格式，保证“看到什么就导出什么”
         st.download_button(
             "导出 CSV",
-            result.to_csv(index=False).encode("utf-8-sig"),
+            display_df.to_csv(index=False).encode("utf-8-sig"),
             file_name="filtered_stocks.csv",
             mime="text/csv",
         )
