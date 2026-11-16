@@ -63,7 +63,7 @@ FIELD_GROUPS = {
     ],
     "成交与市值": [
         {"key": "volume",   "label": "成交量",     "unit": "手(主板)", "scale": 1,   "default": (None, None)},
-        {"key": "turnover", "label": "成交额",     "unit": "万元",     "scale": 1e4, "default": (None, None)},
+        {"key": "turnover", "label": "成交额",     "unit": "万元",     "scale": 1, "default": (None, None)},
         {"key": "hsl",      "label": "换手率",     "unit": "%",        "scale": 1,   "default": (None, None)},
         {"key": "lb",       "label": "量比",       "unit": "倍",       "scale": 1,   "default": (None, None)},
         {"key": "ltsz",     "label": "流通市值",   "unit": "亿元",     "scale": 1,   "default": (None, None)},
@@ -74,11 +74,11 @@ FIELD_GROUPS = {
         {"key": "pn",     "label": "市净率 PB",     "unit": "倍", "scale": 1, "default": (None, None)},
     ],
     "资金流": [
-        {"key": "zljlr",    "label": "主力净流入",   "unit": "万元", "scale": 1e4, "default": (None, None)},
-        {"key": "zllr",     "label": "主力流入",     "unit": "万元", "scale": 1e4, "default": (None, None)},
-        {"key": "zllc",     "label": "主力流出",     "unit": "万元", "scale": 1e4, "default": (None, None)},
-        {"key": "zllr_d5",  "label": "5日主力流入",  "unit": "万元", "scale": 1e4, "default": (None, None)},
-        {"key": "zllc_d5",  "label": "5日主力流出",  "unit": "万元", "scale": 1e4, "default": (None, None)},
+        {"key": "zljlr",    "label": "主力净流入",   "unit": "万元", "scale": 1, "default": (None, None)},
+        {"key": "zllr",     "label": "主力流入",     "unit": "万元", "scale": 1, "default": (None, None)},
+        {"key": "zllc",     "label": "主力流出",     "unit": "万元", "scale": 1, "default": (None, None)},
+        {"key": "zllr_d5",  "label": "5日主力流入",  "unit": "万元", "scale": 1, "default": (None, None)},
+        {"key": "zllc_d5",  "label": "5日主力流出",  "unit": "万元", "scale": 1, "default": (None, None)},
     ],
 }
 
