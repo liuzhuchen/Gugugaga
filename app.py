@@ -250,7 +250,7 @@ st.title("选股筛选器")
 st.sidebar.caption(f"当前用户：{current_name}")
 authenticator.logout(location="sidebar")
 
-# 1) 先渲染筛选控件，这一步不加载数据
+# 8.1 渲染筛选控件（不加载数据）
 filters = render_filters()
 
 # 8.2 侧边栏：策略管理（新增）
@@ -294,15 +294,14 @@ with st.sidebar.expander("💾 策略管理", expanded=False):
 
 if "loaded_strategy_name" in st.session_state:
     st.sidebar.caption(f"当前已加载策略：{st.session_state['loaded_strategy_name']}")
-    
-# 2) 按钮行
+
+# 8.3 按钮行
 col_run, col_refresh = st.columns([1, 1])
 with col_run:
     run = st.button("开始筛选", type="primary")
 with col_refresh:
     refresh = st.button("强制刷新数据")
 
-# 3) 手动刷新：清缓存 + 清上次结果
 if refresh:
     load_data.clear()
     st.session_state.pop("last_result", None)
