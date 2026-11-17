@@ -40,6 +40,10 @@ elif st.session_state.get("authentication_status") is None:
     st.warning("请先登录")
     st.stop()
 
+# 认证通过，取当前用户名（策略按用户隔离）
+current_user = st.session_state["username"]
+current_name = st.session_state.get("name", current_user)
+
 # 已登录，以下才是业务代码
 st.sidebar.success(f"已登录：{st.session_state['name']}")
 authenticator.logout(location="sidebar")
