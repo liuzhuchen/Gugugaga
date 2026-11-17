@@ -7,7 +7,9 @@ import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
 
-
+from strategy_store import (
+    list_strategies, load_strategy, save_strategy, delete_strategy,
+)
 
 # ---------- 认证层 ----------
 # 方式 A：从 secrets 读配置
@@ -118,6 +120,19 @@ def add_pre_close(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ========== 4. 动态渲染筛选控件 ==========
+def apply_strategy_to_state(filters: dict):
+    """把策略写进 session_state，供 render_filters 渲染时读取。"""
+    for key, f in filters.items():
+        if key in ("code", "name"):
+            st.session_state[f"kw_{key}"] = f.get("keyword", "")
+            continue
+
+        st.session_state[f"en_{key}"] = f.get("enabled", False)
+        if f.get("enabled"):
+            st.session_state[f"lo_{key}"] = float(f.get("low") or 0.0)
+            st.session_state[f"hi_{key}"] = float(f.get("high") or 0.0)
+
+
 def render_filters() -> dict:
     """渲染所有字段控件，返回 {列名: {enabled, low, high, scale}}"""
     filters = {}
@@ -228,10 +243,54 @@ def filter_stocks(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
 
 # ========== 6. 界面主流程 ==========
 st.title("选股筛选器")
+st.sidebar.caption(f"当前用户：{current_name}")
+authenticator.logout(location="sidebar")
 
 # 1) 先渲染筛选控件，这一步不加载数据
 filters = render_filters()
 
+# 8.2 侧边栏：策略管理（新增）
+with st.sidebar.expander("💾 策略管理", expanded=False):
+    st.markdown("**保存当前条件**")
+    save_name = st.text_input("策略名称", key="save_strategy_name")
+    if st.button("保存策略", key="btn_save_strategy"):
+        if not save_name.strip():
+            st.warning("请填写策略名称")
+        else:
+            try:
+                save_strategy(current_user, save_name.strip(), filters)
+                st.success(f"已保存：{save_name.strip()}")
+            except Exception as e:
+                st.error(f"保存失败：{e}")
+
+    st.divider()
+
+    st.markdown("**调用已保存策略**")
+    saved = list_strategies(current_user)
+    if not saved:
+        st.caption("暂无已保存的策略")
+    else:
+        selected = st.selectbox("选择策略", saved, key="load_strategy_select")
+        c_load, c_del = st.columns(2)
+        with c_load:
+            if st.button("加载", key="btn_load_strategy"):
+                loaded = load_strategy(current_user, selected)
+                if loaded:
+                    apply_strategy_to_state(loaded)
+                    st.session_state["loaded_strategy_name"] = selected
+                    st.rerun()
+        with c_del:
+            if st.button("删除", key="btn_delete_strategy"):
+                try:
+                    delete_strategy(current_user, selected)
+                    st.success(f"已删除：{selected}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"删除失败：{e}")
+
+if "loaded_strategy_name" in st.session_state:
+    st.sidebar.caption(f"当前已加载策略：{st.session_state['loaded_strategy_name']}")
+    
 # 2) 按钮行
 col_run, col_refresh = st.columns([1, 1])
 with col_run:
@@ -246,7 +305,7 @@ if refresh:
     st.session_state.pop("last_total", None)
     st.info("缓存已清除，请点击「开始筛选」重新拉取数据。")
 
-# 4) 只有点击「开始筛选」才加载数据
+# 8.4 点击才加载数据 + 筛选
 if run:
     with st.spinner("正在加载行情数据并筛选，请稍候..."):
         df = add_pre_close(load_data())
@@ -254,7 +313,7 @@ if run:
     st.session_state["last_result"] = result
     st.session_state["last_total"] = len(df)
 
-# 5) 展示上次结果（这样改条件、点其他控件时结果不会消失）
+# 8.5 展示结果
 if "last_result" in st.session_state:
     result = st.session_state["last_result"]
     total = st.session_state["last_total"]
@@ -269,12 +328,8 @@ if "last_result" in st.session_state:
                 "ltsz", "turnover", "zljlr", "pre_close",
             ] if c in result.columns
         ]
-
-        # 展示层：中文表头 + 单位换算
         display_df = to_display_df(result, show_cols)
         st.dataframe(display_df, use_container_width=True, hide_index=True)
-
-        # 导出也用同一份展示格式，保证“看到什么就导出什么”
         st.download_button(
             "导出 CSV",
             display_df.to_csv(index=False).encode("utf-8-sig"),
