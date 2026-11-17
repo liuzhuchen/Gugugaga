@@ -44,10 +44,6 @@ elif st.session_state.get("authentication_status") is None:
 current_user = st.session_state["username"]
 current_name = st.session_state.get("name", current_user)
 
-# 已登录，以下才是业务代码
-st.sidebar.success(f"已登录：{st.session_state['name']}")
-authenticator.logout(location="sidebar")
-
 # ========== 2. 字段元数据（唯一需要维护的地方）==========
 # scale 的含义：1 个界面单位 = scale 个原始单位
 # 例如 turnover 原始是元，界面用万元，scale=1e4
