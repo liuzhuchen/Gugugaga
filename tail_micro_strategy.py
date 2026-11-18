@@ -9,6 +9,14 @@ import akshare as ak
 import easyquotation
 import streamlit as st
 
+import pytz
+
+BJ_TZ = pytz.timezone("Asia/Shanghai")
+
+
+def _now_bj() -> dt.datetime:
+    """返回带北京时区的当前时间。"""
+    return dt.datetime.now(pytz.utc).astimezone(BJ_TZ)
 
 @dataclass
 class TailConfig:
@@ -70,24 +78,23 @@ def _snapshot_arrival_time(raw: dict) -> Optional[dt.datetime]:
     return None
 
 
-def collect_tail_snapshots(
-    codes: List[str],
-    cfg: TailConfig = TailConfig(),
-    status: Optional[st.delta_generator.DeltaGenerator] = None,
-) -> List[Snapshot]:
+def collect_tail_snapshots(codes, cfg=TailConfig(), status=None):
     quotation = easyquotation.use("sina")
-    snapshots: List[Snapshot] = []
-    today = dt.date.today()
+    snapshots = []
+    now_bj = _now_bj()
+    today = now_bj.date()
     start_dt = dt.datetime.combine(today, dt.datetime.strptime(cfg.sample_start, "%H:%M").time())
     end_dt = dt.datetime.combine(today, dt.datetime.strptime(cfg.sample_end, "%H:%M").time())
 
-    while dt.datetime.now() < start_dt:
-        remain = (start_dt - dt.datetime.now()).total_seconds()
+    # 等待窗口开启
+    while _now_bj() < start_dt.replace(tzinfo=BJ_TZ):
+        remain = (start_dt.replace(tzinfo=BJ_TZ) - _now_bj()).total_seconds()
         if status:
             status.update(label=f"等待尾盘窗口（{cfg.sample_start}）… 剩余 {int(remain)} 秒")
         time.sleep(5)
 
-    while dt.datetime.now() <= end_dt:
+    # 采样循环
+    while _now_bj() <= end_dt.replace(tzinfo=BJ_TZ):
         loop_start = time.time()
         try:
             raw = quotation.real(codes)
@@ -97,13 +104,14 @@ def collect_tail_snapshots(
             time.sleep(cfg.sample_interval_sec)
             continue
 
-        local_now = dt.datetime.now()
+        local_now = _now_bj()          # ← 关键：用北京时间
         accepted, stale = {}, 0
         for code, quote in raw.items():
             code6 = _normalize_code(code)
             data_ts = _snapshot_arrival_time(quote)
             if data_ts is not None:
-                if (local_now - data_ts).total_seconds() > cfg.max_stale_sec:
+                # 数据源返回的也是北京时间，两边同口径才能正确算时差
+                if (local_now.replace(tzinfo=None) - data_ts).total_seconds() > cfg.max_stale_sec:
                     stale += 1
                     continue
             accepted[code6] = quote
