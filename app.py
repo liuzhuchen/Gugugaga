@@ -387,29 +387,38 @@ else:
     run_tail = st.button("运行尾盘微盘策略", type="primary")
 
     if run_tail:
-        now_bj = dt.datetime.now(pytz.utc).astimezone(BJ_TZ).time()
-        if not (start_time <= now_bj <= end_time):
-            st.warning(
-                f"当前北京时间 {now_bj:%H:%M} 不在采样窗口 "
-                f"{sample_start_str}–{sample_end_str} 内。"
-            )
+        now_bj = dt.datetime.now(pytz.utc).astimezone(BJ_TZ)
+        now_t = now_bj.time()
+    
+        if now_t > end_time:
+            st.error(f"当前北京时间 {now_t:%H:%M} 已超过采样结束时间 {sample_end_str}")
         else:
+            # 窗口内才点 → 明确警告会占用采样时间
+            if start_time <= now_t <= end_time:
+                st.warning(
+                    f"当前已在采样窗口内（{sample_start_str}–{sample_end_str}）。"
+                    "筛池约需 30–60 秒，会占用采样时间。下次建议在窗口前点击运行，"
+                    "让筛池和等待都在窗口外完成。"
+                )
+    
             cfg = TailConfig(
                 float_mktcap_max=mktcap * 1e8,
                 price_min=price_min, price_max=price_max,
                 top_n=int(top_n),
                 pct_chg_min=pct_min, pct_chg_max=pct_max,
-                sample_start=sample_start_str,   # ← 关键：传给配置
+                sample_start=sample_start_str,
                 sample_end=sample_end_str,
             )
-            
-            with st.status("正在运行尾盘策略…", expanded=True) as status:
+    
+            with st.status("运行尾盘策略…", expanded=True) as status:
+                progress = st.progress(0.0, text="准备中…")
                 try:
-                    ranked = run_tail_strategy(cfg, status)
+                    ranked = run_tail_strategy(cfg, status=status, progress=progress)
                     if ranked is None or ranked.empty:
                         status.update(label="微盘池为空或打分后无结果", state="error")
                     else:
                         status.update(label="策略运行完成", state="complete")
+                        progress.progress(1.0, text="完成")
                         out_cols = ["代码", "名称", "score", "pct_chg_realtime",
                                     "tail_vol_ratio", "tail_slope", "流通市值", "换手率"]
                         out = ranked[[c for c in out_cols if c in ranked.columns]].head(cfg.top_n)
