@@ -78,23 +78,16 @@ def _snapshot_arrival_time(raw: dict) -> Optional[dt.datetime]:
     return None
 
 
-def collect_tail_snapshots(codes, cfg=TailConfig(), status=None):
+def collect_tail_snapshots(codes, cfg, status=None, progress=None):
     quotation = easyquotation.use("sina")
     snapshots = []
     now_bj = _now_bj()
     today = now_bj.date()
-    start_dt = dt.datetime.combine(today, dt.datetime.strptime(cfg.sample_start, "%H:%M").time())
-    end_dt = dt.datetime.combine(today, dt.datetime.strptime(cfg.sample_end, "%H:%M").time())
+    start_dt = dt.datetime.combine(today, dt.datetime.strptime(cfg.sample_start, "%H:%M").time()).replace(tzinfo=BJ_TZ)
+    end_dt = dt.datetime.combine(today, dt.datetime.strptime(cfg.sample_end, "%H:%M").time()).replace(tzinfo=BJ_TZ)
+    total_window_sec = max(1.0, (end_dt - start_dt).total_seconds())
 
-    # 等待窗口开启
-    while _now_bj() < start_dt.replace(tzinfo=BJ_TZ):
-        remain = (start_dt.replace(tzinfo=BJ_TZ) - _now_bj()).total_seconds()
-        if status:
-            status.update(label=f"等待尾盘窗口（{cfg.sample_start}）… 剩余 {int(remain)} 秒")
-        time.sleep(5)
-
-    # 采样循环
-    while _now_bj() <= end_dt.replace(tzinfo=BJ_TZ):
+    while _now_bj() <= end_dt:
         loop_start = time.time()
         try:
             raw = quotation.real(codes)
@@ -104,13 +97,12 @@ def collect_tail_snapshots(codes, cfg=TailConfig(), status=None):
             time.sleep(cfg.sample_interval_sec)
             continue
 
-        local_now = _now_bj()          # ← 关键：用北京时间
+        local_now = _now_bj()
         accepted, stale = {}, 0
         for code, quote in raw.items():
             code6 = _normalize_code(code)
             data_ts = _snapshot_arrival_time(quote)
             if data_ts is not None:
-                # 数据源返回的也是北京时间，两边同口径才能正确算时差
                 if (local_now.replace(tzinfo=None) - data_ts).total_seconds() > cfg.max_stale_sec:
                     stale += 1
                     continue
@@ -118,11 +110,18 @@ def collect_tail_snapshots(codes, cfg=TailConfig(), status=None):
 
         if accepted:
             snapshots.append(Snapshot(ts=local_now, data=accepted))
+
+        now_after = _now_bj()
+        remain_sec = max(0, (end_dt - now_after).total_seconds())
         if status:
-            status.update(
-                label=f"采样中… 已获得 {len(snapshots)} 次有效快照"
-                + (f"（丢弃滞后 {stale} 只）" if stale else "")
-            )
+            msg = f"阶段 3/3：采样中，已获得 {len(snapshots)} 次快照，剩余 {int(remain_sec)} 秒"
+            if stale:
+                msg += f"（本轮丢弃滞后 {stale} 只）"
+            status.update(label=msg)
+        if progress:
+            ratio = 1 - remain_sec / total_window_sec
+            progress.progress(min(1.0, max(0.0, ratio)),
+                              text=f"采样 {len(snapshots)} 次，剩余 {int(remain_sec)} 秒")
 
         elapsed = time.time() - loop_start
         time.sleep(max(0, cfg.sample_interval_sec - elapsed))
@@ -206,19 +205,47 @@ def score_and_rank(factor_df: pd.DataFrame, cfg: TailConfig = TailConfig()) -> p
     return df.sort_values("score", ascending=False).reset_index(drop=True)
 
 
-def run_tail_strategy(cfg: TailConfig = TailConfig(), status=None) -> Optional[pd.DataFrame]:
+def run_tail_strategy(cfg, status=None, progress=None):
+    # 阶段 1：筛池（可能在窗口前完成，不占用采样时间）
     if status:
-        status.update(label="正在筛微盘池…")
+        status.update(label="阶段 1/3：正在筛微盘池（约 30–60 秒）…")
+    t0 = time.time()
     pool = build_micro_pool(cfg)
+    pool_elapsed = time.time() - t0
     if pool.empty:
         return None
+    if status:
+        status.update(label=f"阶段 1/3 完成：微盘池 {len(pool)} 只，耗时 {pool_elapsed:.0f} 秒")
 
-    codes = pool["代码"].tolist()
-    snapshots = collect_tail_snapshots(codes, cfg, status)
+    # 阶段 2：等待窗口开启（仅当点击时还没到窗口）
+    now_bj = _now_bj()
+    today = now_bj.date()
+    start_dt = dt.datetime.combine(today, dt.datetime.strptime(cfg.sample_start, "%H:%M").time()).replace(tzinfo=BJ_TZ)
+    end_dt = dt.datetime.combine(today, dt.datetime.strptime(cfg.sample_end, "%H:%M").time()).replace(tzinfo=BJ_TZ)
+
+    if _now_bj() > end_dt:
+        raise RuntimeError(f"当前已超过采样结束时间 {cfg.sample_end}")
+
+    if _now_bj() < start_dt:
+        if status:
+            status.update(label=f"阶段 2/3：等待采样窗口 {cfg.sample_start} 开启…")
+        while _now_bj() < start_dt:
+            remain = (start_dt - _now_bj()).total_seconds()
+            if status:
+                status.update(label=f"阶段 2/3：等待采样窗口 {cfg.sample_start} 开启，剩余 {int(remain)} 秒…")
+            time.sleep(5)
+
+    # 如果用户在窗口内才点，筛池已经吃掉了部分采样时间，明确提示
+    consumed = max(0, (_now_bj() - start_dt).total_seconds())
+    if consumed > 1 and status:
+        status.update(label=f"注意：筛池已占用窗口内 {consumed:.0f} 秒，采样时间相应减少")
+
+    # 阶段 3：采样
+    snapshots = collect_tail_snapshots(pool["代码"].tolist(), cfg, status, progress)
     if len(snapshots) < 3:
         raise RuntimeError(f"有效快照不足（{len(snapshots)} 次）")
 
     if status:
-        status.update(label="正在计算尾盘因子并打分…")
+        status.update(label="计算尾盘因子并打分…")
     factors = compute_tail_factors(snapshots, pool)
     return score_and_rank(factors, cfg)
