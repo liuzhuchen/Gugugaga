@@ -11,6 +11,12 @@ from strategy_store import (
     list_strategies, load_strategy, save_strategy, delete_strategy,
 )
 
+# 20261118 尾盘筛选功能
+import datetime as dt
+from tail_micro_strategy import TailConfig, run_tail_strategy
+#
+
+
 # ---------- 认证层 ----------
 # 方式 A：从 secrets 读配置
 config = {
@@ -246,94 +252,151 @@ st.title("选股筛选器")
 st.sidebar.caption(f"当前用户：{current_name}")
 authenticator.logout(location="sidebar")
 
-# 8.1 渲染筛选控件（不加载数据）
-filters = render_filters()
+# 20261118 尾盘筛选功能
+page = st.sidebar.radio("功能页面", ["自定义筛选", "尾盘微盘策略"], key="page_switch")
+#
 
-# 8.2 侧边栏：策略管理（新增）
-with st.sidebar.expander("💾 策略管理", expanded=False):
-    st.markdown("**保存当前条件**")
-    save_name = st.text_input("策略名称", key="save_strategy_name")
-    if st.button("保存策略", key="btn_save_strategy"):
-        if not save_name.strip():
-            st.warning("请填写策略名称")
-        else:
-            try:
-                save_strategy(current_user, save_name.strip(), filters)
-                st.success(f"已保存：{save_name.strip()}")
-            except Exception as e:
-                st.error(f"保存失败：{e}")
-
-    st.divider()
-
-    st.markdown("**调用已保存策略**")
-    saved = list_strategies(current_user)
-    if not saved:
-        st.caption("暂无已保存的策略")
-    else:
-        selected = st.selectbox("选择策略", saved, key="load_strategy_select")
-        c_load, c_del = st.columns(2)
-        with c_load:
-            if st.button("加载", key="btn_load_strategy"):
-                loaded = load_strategy(current_user, selected)
-                if loaded:
-                    apply_strategy_to_state(loaded)
-                    st.session_state["loaded_strategy_name"] = selected
-                    st.rerun()
-        with c_del:
-            if st.button("删除", key="btn_delete_strategy"):
+if page == "自定义筛选":
+    # 8.1 渲染筛选控件（不加载数据）
+    filters = render_filters()
+    
+    # 8.2 侧边栏：策略管理（新增）
+    with st.sidebar.expander("💾 策略管理", expanded=False):
+        st.markdown("**保存当前条件**")
+        save_name = st.text_input("策略名称", key="save_strategy_name")
+        if st.button("保存策略", key="btn_save_strategy"):
+            if not save_name.strip():
+                st.warning("请填写策略名称")
+            else:
                 try:
-                    delete_strategy(current_user, selected)
-                    st.success(f"已删除：{selected}")
-                    st.rerun()
+                    save_strategy(current_user, save_name.strip(), filters)
+                    st.success(f"已保存：{save_name.strip()}")
                 except Exception as e:
-                    st.error(f"删除失败：{e}")
-
-if "loaded_strategy_name" in st.session_state:
-    st.sidebar.caption(f"当前已加载策略：{st.session_state['loaded_strategy_name']}")
-
-# 8.3 按钮行
-col_run, col_refresh = st.columns([1, 1])
-with col_run:
-    run = st.button("开始筛选", type="primary")
-with col_refresh:
-    refresh = st.button("强制刷新数据")
-
-if refresh:
-    load_data.clear()
-    st.session_state.pop("last_result", None)
-    st.session_state.pop("last_total", None)
-    st.info("缓存已清除，请点击「开始筛选」重新拉取数据。")
-
-# 8.4 点击才加载数据 + 筛选
-if run:
-    with st.spinner("正在加载行情数据并筛选，请稍候..."):
-        df = add_pre_close(load_data())
-        result = filter_stocks(df, filters)
-    st.session_state["last_result"] = result
-    st.session_state["last_total"] = len(df)
-
-# 8.5 展示结果
-if "last_result" in st.session_state:
-    result = st.session_state["last_result"]
-    total = st.session_state["last_total"]
-    st.caption(f"数据共 {total} 只，筛选结果 {len(result)} 只")
-
-    if result.empty:
-        st.info("没有股票满足当前条件，请放宽筛选范围。")
+                    st.error(f"保存失败：{e}")
+    
+        st.divider()
+    
+        st.markdown("**调用已保存策略**")
+        saved = list_strategies(current_user)
+        if not saved:
+            st.caption("暂无已保存的策略")
+        else:
+            selected = st.selectbox("选择策略", saved, key="load_strategy_select")
+            c_load, c_del = st.columns(2)
+            with c_load:
+                if st.button("加载", key="btn_load_strategy"):
+                    loaded = load_strategy(current_user, selected)
+                    if loaded:
+                        apply_strategy_to_state(loaded)
+                        st.session_state["loaded_strategy_name"] = selected
+                        st.rerun()
+            with c_del:
+                if st.button("删除", key="btn_delete_strategy"):
+                    try:
+                        delete_strategy(current_user, selected)
+                        st.success(f"已删除：{selected}")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"删除失败：{e}")
+    
+    if "loaded_strategy_name" in st.session_state:
+        st.sidebar.caption(f"当前已加载策略：{st.session_state['loaded_strategy_name']}")
+    
+    # 8.3 按钮行
+    col_run, col_refresh = st.columns([1, 1])
+    with col_run:
+        run = st.button("开始筛选", type="primary")
+    with col_refresh:
+        refresh = st.button("强制刷新数据")
+    
+    if refresh:
+        load_data.clear()
+        st.session_state.pop("last_result", None)
+        st.session_state.pop("last_total", None)
+        st.info("缓存已清除，请点击「开始筛选」重新拉取数据。")
+    
+    # 8.4 点击才加载数据 + 筛选
+    if run:
+        with st.spinner("正在加载行情数据并筛选，请稍候..."):
+            df = add_pre_close(load_data())
+            result = filter_stocks(df, filters)
+        st.session_state["last_result"] = result
+        st.session_state["last_total"] = len(df)
+    
+    # 8.5 展示结果
+    if "last_result" in st.session_state:
+        result = st.session_state["last_result"]
+        total = st.session_state["last_total"]
+        st.caption(f"数据共 {total} 只，筛选结果 {len(result)} 只")
+    
+        if result.empty:
+            st.info("没有股票满足当前条件，请放宽筛选范围。")
+        else:
+            show_cols = [
+                c for c in [
+                    "code", "name", "zxj", "zdf", "hsl", "pe_ttm", "pn",
+                    "ltsz", "turnover", "zljlr", "pre_close",
+                ] if c in result.columns
+            ]
+            display_df = to_display_df(result, show_cols)
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.download_button(
+                "导出 CSV",
+                display_df.to_csv(index=False).encode("utf-8-sig"),
+                file_name="filtered_stocks.csv",
+                mime="text/csv",
+            )
     else:
-        show_cols = [
-            c for c in [
-                "code", "name", "zxj", "zdf", "hsl", "pe_ttm", "pn",
-                "ltsz", "turnover", "zljlr", "pre_close",
-            ] if c in result.columns
-        ]
-        display_df = to_display_df(result, show_cols)
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
-        st.download_button(
-            "导出 CSV",
-            display_df.to_csv(index=False).encode("utf-8-sig"),
-            file_name="filtered_stocks.csv",
-            mime="text/csv",
-        )
+        st.info("设置筛选条件后，点击「开始筛选」。")
+
+#  20261118 尾盘筛选功能
 else:
-    st.info("设置筛选条件后，点击「开始筛选」。")
+    st.title("尾盘微盘策略")
+    st.caption("14:45–14:55 窗口内对微盘池多次采样，按尾盘量比、价格斜率、涨幅打分取 Top N。")
+
+    with st.expander("策略参数", expanded=False):
+        c1, c2 = st.columns(2)
+        with c1:
+            mktcap = st.number_input("流通市值上限（亿元）", value=30.0, step=5.0)
+            price_min = st.number_input("最低价（元）", value=2.0, step=0.5)
+            price_max = st.number_input("最高价（元）", value=50.0, step=5.0)
+        with c2:
+            top_n = st.number_input("取 Top N", value=10, step=5, min_value=1)
+            pct_min = st.number_input("涨幅下限 (%)", value=1.0, step=0.5)
+            pct_max = st.number_input("涨幅上限 (%)", value=7.0, step=0.5)
+
+    run_tail = st.button("运行尾盘微盘策略", type="primary")
+
+    if run_tail:
+        now = dt.datetime.now().time()
+        start = dt.time(14, 45)
+        end = dt.time(14, 55)
+        if not (start <= now <= end):
+            st.warning(f"当前时间 {now:%H:%M} 不在尾盘采样窗口 14:45–14:55 内。"
+                       "策略需要在这个窗口内实时轮询，请到时间后再运行。")
+        else:
+            cfg = TailConfig(
+                float_mktcap_max=mktcap * 1e8,
+                price_min=price_min, price_max=price_max,
+                top_n=int(top_n),
+                pct_chg_min=pct_min, pct_chg_max=pct_max,
+            )
+            with st.status("正在运行尾盘策略…", expanded=True) as status:
+                try:
+                    ranked = run_tail_strategy(cfg, status)
+                    if ranked is None or ranked.empty:
+                        status.update(label="微盘池为空或打分后无结果", state="error")
+                    else:
+                        status.update(label="策略运行完成", state="complete")
+                        out_cols = ["代码", "名称", "score", "pct_chg_realtime",
+                                    "tail_vol_ratio", "tail_slope", "流通市值", "换手率"]
+                        out = ranked[[c for c in out_cols if c in ranked.columns]].head(cfg.top_n)
+                        st.dataframe(out, use_container_width=True, hide_index=True)
+                        st.download_button(
+                            "导出 CSV",
+                            out.to_csv(index=False).encode("utf-8-sig"),
+                            file_name="tail_micro_result.csv",
+                            mime="text/csv",
+                        )
+                except Exception as e:
+                    status.update(label=f"运行失败：{e}", state="error")
