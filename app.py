@@ -13,6 +13,9 @@ from strategy_store import (
 
 # 20261118 尾盘筛选功能
 import datetime as dt
+import pytz
+
+BJ_TZ = pytz.timezone("Asia/Shanghai")
 from tail_micro_strategy import TailConfig, run_tail_strategy
 #
 
@@ -364,23 +367,42 @@ else:
             top_n = st.number_input("取 Top N", value=10, step=5, min_value=1)
             pct_min = st.number_input("涨幅下限 (%)", value=1.0, step=0.5)
             pct_max = st.number_input("涨幅上限 (%)", value=7.0, step=0.5)
+    
+        # 新增：采样窗口时间输入
+        st.markdown("**采样窗口（北京时间）**")
+        c3, c4 = st.columns(2)
+        with c3:
+            start_time = st.time_input("开始时间", value=dt.time(14, 45), step=60, key="tail_start")
+        with c4:
+            end_time = st.time_input("结束时间", value=dt.time(14, 55), step=60, key="tail_end")
+    
+    # 时间合法性校验
+    if start_time >= end_time:
+        st.error("开始时间必须早于结束时间")
+        st.stop()
+    
+    sample_start_str = start_time.strftime("%H:%M")
+    sample_end_str = end_time.strftime("%H:%M")
 
     run_tail = st.button("运行尾盘微盘策略", type="primary")
 
     if run_tail:
-        now = dt.datetime.now().time()
-        start = dt.time(14, 45)
-        end = dt.time(14, 55)
-        if not (start <= now <= end):
-            st.warning(f"当前时间 {now:%H:%M} 不在尾盘采样窗口 14:45–14:55 内。"
-                       "策略需要在这个窗口内实时轮询，请到时间后再运行。")
+        now_bj = dt.datetime.now(pytz.utc).astimezone(BJ_TZ).time()
+        if not (start_time <= now_bj <= end_time):
+            st.warning(
+                f"当前北京时间 {now_bj:%H:%M} 不在采样窗口 "
+                f"{sample_start_str}–{sample_end_str} 内。"
+            )
         else:
             cfg = TailConfig(
                 float_mktcap_max=mktcap * 1e8,
                 price_min=price_min, price_max=price_max,
                 top_n=int(top_n),
                 pct_chg_min=pct_min, pct_chg_max=pct_max,
+                sample_start=sample_start_str,   # ← 关键：传给配置
+                sample_end=sample_end_str,
             )
+            
             with st.status("正在运行尾盘策略…", expanded=True) as status:
                 try:
                     ranked = run_tail_strategy(cfg, status)
