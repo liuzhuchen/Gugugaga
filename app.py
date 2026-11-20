@@ -445,7 +445,7 @@ elif page == "尾盘微盘策略":
 
 # 20261120 双策略
 elif page == "量比双策略":
-    st.title("量比双策略：A（低位缩量） / B（放量上攻）")
+    st.title("双策略")
 
     with st.expander("策略参数（可调上下限）", expanded=False):
         st.markdown("**量比触发区间（互斥）**")
