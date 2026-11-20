@@ -106,27 +106,6 @@ def fetch_snapshot_all() -> pd.DataFrame:
     df = df[~df["name"].str.contains("ST", na=False)]
     return df.reset_index(drop=True)
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-@st.cache_data(ttl=60)
-def fetch_all_parallel(codes, max_workers=6):
-    results = []
-    def fetch_batch(batch):
-        tx_codes = ",".join(_code_to_tx(c) for c in batch)
-        try:
-            r = requests.get(
-                f"https://qt.gtimg.cn/q={tx_codes}",
-                headers=TX_HEADERS, timeout=10, encoding="gbk",
-            )
-            return _parse_tx_batch(r.text)
-        except Exception:
-            return []
-
-    batches = [codes[i:i + TX_BATCH_SIZE] for i in range(0, len(codes), TX_BATCH_SIZE)]
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(fetch_batch, b) for b in batches]
-        for f in as_completed(futures):
-            results.extend(f.result())
-    return results
 
 # ---------- 历史日线 + MA ----------
 @st.cache_data(ttl=3600, show_spinner=False)
