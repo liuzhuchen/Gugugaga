@@ -15,6 +15,10 @@ from strategy_store import (
 import datetime as dt
 import pytz
 
+# 20261120 双策略
+from dual_strategy import DualStrategyConfig, run_dual_strategy, to_display
+
+
 BJ_TZ = pytz.timezone("Asia/Shanghai")
 from tail_micro_strategy import TailConfig, run_tail_strategy
 #
@@ -255,9 +259,15 @@ st.title("选股筛选器")
 st.sidebar.caption(f"当前用户：{current_name}")
 authenticator.logout(location="sidebar")
 
-# 20261118 尾盘筛选功能
-page = st.sidebar.radio("功能页面", ["自定义筛选", "尾盘微盘策略"], key="page_switch")
+# 20261118 尾盘筛选功能 + 量比双策略
+# page = st.sidebar.radio("功能页面", ["自定义筛选", "尾盘微盘策略"], key="page_switch")
 #
+
+page = st.sidebar.radio(
+    "功能页面",
+    ["自定义筛选", "尾盘微盘策略", "量比双策略"],
+    key="page_switch",
+)
 
 if page == "自定义筛选":
     # 8.1 渲染筛选控件（不加载数据）
@@ -353,7 +363,8 @@ if page == "自定义筛选":
         st.info("设置筛选条件后，点击「开始筛选」。")
 
 #  20261118 尾盘筛选功能
-else:
+
+elif page == "尾盘微盘策略":
     st.title("尾盘微盘策略")
     st.caption("14:45–14:55 窗口内对微盘池多次采样，按尾盘量比、价格斜率、涨幅打分取 Top N。")
 
@@ -431,3 +442,83 @@ else:
                         )
                 except Exception as e:
                     status.update(label=f"运行失败：{e}", state="error")
+
+# 20261120 双策略
+elif page == "量比双策略":
+    st.title("量比双策略：A（低位缩量） / B（放量上攻）")
+
+    with st.expander("策略参数（可调上下限）", expanded=False):
+        st.markdown("**量比触发区间（互斥）**")
+        c1, c2, c3, c4 = st.columns(4)
+        with c1: vra_lo = st.number_input("A 量比下限", value=0.5, step=0.1)
+        with c2: vra_hi = st.number_input("A 量比上限", value=1.2, step=0.1)
+        with c3: vrb_lo = st.number_input("B 量比下限", value=1.5, step=0.1)
+        with c4: vrb_hi = st.number_input("B 量比上限", value=3.0, step=0.1)
+
+        st.markdown("**策略 A 条件**")
+        a1, a2, a3 = st.columns(3)
+        with a1:
+            a_t_lo = st.number_input("换手下限 %", value=1.0, step=0.5)
+            a_t_hi = st.number_input("换手上限 %", value=4.0, step=0.5)
+        with a2:
+            a_amt = st.number_input("成交额下限（万元）", value=5000.0, step=500.0)
+            a_cap_lo = st.number_input("总市值下限（亿）", value=30.0, step=5.0)
+        with a3:
+            a_cap_hi = st.number_input("总市值上限（亿）", value=300.0, step=10.0)
+            a_pct_lo = st.number_input("涨跌幅下限 %", value=-3.0, step=0.5)
+            a_pct_hi = st.number_input("涨跌幅上限 %", value=3.0, step=0.5)
+
+        st.markdown("**策略 B 条件**")
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            b_t_lo = st.number_input("换手下限 %", value=3.0, step=0.5)
+            b_t_hi = st.number_input("换手上限 %", value=10.0, step=0.5)
+        with b2:
+            b_amt = st.number_input("成交额下限（万元）", value=20000.0, step=1000.0)
+            b_cap_lo = st.number_input("总市值下限（亿）", value=50.0, step=10.0)
+        with b3:
+            b_cap_hi = st.number_input("总市值上限（亿）", value=500.0, step=50.0)
+            b_pct_lo = st.number_input("涨跌幅下限 %", value=2.0, step=0.5)
+            b_pct_hi = st.number_input("涨跌幅上限 %", value=5.0, step=0.5)
+
+    run_dual = st.button("运行双策略筛选", type="primary")
+
+    if run_dual:
+        cfg = DualStrategyConfig(
+            vol_ratio_a_low=vra_lo, vol_ratio_a_high=vra_hi,
+            vol_ratio_b_low=vrb_lo, vol_ratio_b_high=vrb_hi,
+            a_turnover_low=a_t_lo, a_turnover_high=a_t_hi,
+            a_amount_min=a_amt * 1e4,
+            a_mktcap_low=a_cap_lo * 1e8, a_mktcap_high=a_cap_hi * 1e8,
+            a_pct_low=a_pct_lo, a_pct_high=a_pct_hi,
+            b_turnover_low=b_t_lo, b_turnover_high=b_t_hi,
+            b_amount_min=b_amt * 1e4,
+            b_mktcap_low=b_cap_lo * 1e8, b_mktcap_high=b_cap_hi * 1e8,
+            b_pct_low=b_pct_lo, b_pct_high=b_pct_hi,
+        )
+        with st.spinner("拉取实时快照并计算候选池均线（仅对初筛后的股票拉历史，约 10–30 秒）…"):
+            result_a, result_b = run_dual_strategy(cfg)
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.subheader(f"策略 A 结果：{len(result_a)} 只")
+            if result_a.empty:
+                st.info("无符合条件的股票")
+            else:
+                st.dataframe(to_display(result_a), use_container_width=True, hide_index=True)
+                st.download_button(
+                    "导出 A 结果",
+                    to_display(result_a).to_csv(index=False).encode("utf-8-sig"),
+                    file_name="strategy_A.csv", mime="text/csv", key="dl_a",
+                )
+        with col_b:
+            st.subheader(f"策略 B 结果：{len(result_b)} 只")
+            if result_b.empty:
+                st.info("无符合条件的股票")
+            else:
+                st.dataframe(to_display(result_b), use_container_width=True, hide_index=True)
+                st.download_button(
+                    "导出 B 结果",
+                    to_display(result_b).to_csv(index=False).encode("utf-8-sig"),
+                    file_name="strategy_B.csv", mime="text/csv", key="dl_b",
+                )
