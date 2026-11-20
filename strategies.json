@@ -1,0 +1,161 @@
+{
+  "zhuchen": {
+    "策略B": {
+      "filters": {
+        "zxj": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zd": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zdf": {
+          "enabled": true,
+          "low": 2.0,
+          "high": 5.0,
+          "scale": 1
+        },
+        "zf": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "speed": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zdf_d5": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zdf_d10": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zdf_d20": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zdf_d60": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zdf_w52": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zdf_y": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "volume": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "turnover": {
+          "enabled": true,
+          "low": 20000.0,
+          "high": null,
+          "scale": 1
+        },
+        "hsl": {
+          "enabled": true,
+          "low": 3.0,
+          "high": 10.0,
+          "scale": 1
+        },
+        "lb": {
+          "enabled": true,
+          "low": 1.5,
+          "high": 2.5,
+          "scale": 1
+        },
+        "ltsz": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zsz": {
+          "enabled": true,
+          "low": 50.0,
+          "high": 500.0,
+          "scale": 1
+        },
+        "pe_ttm": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "pn": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zljlr": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zllr": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zllc": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zllr_d5": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "zllc_d5": {
+          "enabled": false,
+          "low": null,
+          "high": null,
+          "scale": 1
+        },
+        "code": {
+          "enabled": false,
+          "keyword": ""
+        },
+        "name": {
+          "enabled": false,
+          "keyword": ""
+        }
+      },
+      "updated_at": "2026-11-20T07:08:02+00:00"
+    }
+  }
+}
