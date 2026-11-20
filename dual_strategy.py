@@ -8,6 +8,8 @@ import pandas as pd
 import requests
 import akshare as ak
 import streamlit as st
+import re
+import time
 
 TX_BATCH_SIZE = 20
 TX_HEADERS = {"User-Agent": "Mozilla/5.0"}
@@ -54,11 +56,9 @@ def _code_to_tx(code: str) -> str:
 
 def _parse_tx_batch(raw_text: str) -> list[dict]:
     rows = []
-    for line in raw_text.strip().split(";"):
-        line = line.strip()
-        if "=" not in line:
-            continue
-        payload = line.split("=", 1)[1].strip('"')
+    # 匹配 v_sh600519="..." 或 v_sz000001="..."，不依赖 ; 或 \n 分隔
+    for m in re.finditer(r'v_([a-z]{2}\d+)="([^"]*)"', raw_text):
+        code_full, payload = m.group(1), m.group(2)
         parts = payload.split("~")
         if len(parts) < 48:
             continue
@@ -68,10 +68,10 @@ def _parse_tx_batch(raw_text: str) -> list[dict]:
                 "name": parts[1],
                 "price": float(parts[3]),
                 "pct_chg": float(parts[32]),
-                "turnover": float(parts[38]),          # 换手率 %
-                "amount": float(parts[37]) * 1e4,       # 成交额，万元→元
-                "total_mktcap": float(parts[45]) * 1e8, # 总市值，亿→元
-                "vol_ratio": float(parts[47]),          # 量比
+                "turnover": float(parts[38]),
+                "amount": float(parts[37]) * 1e4,
+                "total_mktcap": float(parts[45]) * 1e8,
+                "vol_ratio": float(parts[47]),
             })
         except (ValueError, IndexError):
             continue
@@ -89,9 +89,10 @@ def fetch_snapshot_all() -> pd.DataFrame:
         tx_codes = ",".join(_code_to_tx(c) for c in batch)
         try:
             r = requests.get(
-                f"https://qt.gtimg.cn/q={tx_codes}",
-                headers=TX_HEADERS, timeout=10, encoding="gbk",
-            )
+            f"https://qt.gtimg.cn/q={tx_codes}",
+            headers=TX_HEADERS, timeout=10,
+            )            
+            r.encoding = "gbk"
             all_rows.extend(_parse_tx_batch(r.text))
         except Exception:
             continue
