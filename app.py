@@ -253,6 +253,24 @@ def filter_stocks(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
 
     return out[mask.fillna(False)].reset_index(drop=True)
 
+###### 20261123 ma20/ma60
+
+
+def cal_ma(df: pd.DataFrame, ma_windows=(20, 60)) -> pd.DataFrame:
+    """对候选池逐只拉日线，计算最新 MA20/MA60，合并回快照。"""
+    ma_records = []
+    for _, row in df.iterrows():
+        hist = _hist_for_ma(row["code"])
+        if hist.empty or len(hist) < max(ma_windows):
+            ma_records.append({"code": row["code"], "ma20": np.nan, "ma60": np.nan})
+            continue
+        closes = hist["close"]
+        ma_records.append({
+            "code": row["code"],
+            "ma20": round(closes.rolling(20).mean().iloc[-1], 2) if 20 in ma_windows else np.nan,
+            "ma60": round(closes.rolling(60).mean().iloc[-1], 2) if 60 in ma_windows else np.nan,
+        })
+    return df.merge(pd.DataFrame(ma_records), on="code", how="left")
 
 # ========== 6. 界面主流程 ==========
 st.title("选股筛选器")
