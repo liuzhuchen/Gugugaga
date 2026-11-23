@@ -305,6 +305,29 @@ page = st.sidebar.radio(
 )
 
 if page == "自定义筛选":
+    # ... 在侧边栏策略管理的“加载”按钮分支内 ...
+    if load_clicked:
+        loaded_filters = load_strategy(username, selected)
+        if loaded_filters:
+            # 不要直接调用 apply_strategy_to_state
+            # 而是把它暂存到另一个 key
+            st.session_state["pending_filters"] = loaded_filters
+            st.session_state["loaded_strategy_name"] = selected
+            st.rerun()  # 立即重跑，在控件渲染前应用
+    
+    # ---------- 在 render_filters() 调用之前，插入这段应用逻辑 ----------
+    if "pending_filters" in st.session_state:
+        pending = st.session_state.pop("pending_filters")
+        # 现在控件还没创建，可以安全地写入 session_state
+        for key, f in pending.items():
+            if key in ("code", "name"):
+                st.session_state[f"kw_{key}"] = f.get("keyword", "")
+                continue
+            st.session_state[f"en_{key}"] = f.get("enabled", False)
+            if f.get("enabled"):
+                st.session_state[f"lo_{key}"] = float(f.get("low") or 0.0)
+                st.session_state[f"hi_{key}"] = float(f.get("high") or 0.0)
+
     # 8.1 渲染筛选控件（不加载数据）
     filters = render_filters()
     
