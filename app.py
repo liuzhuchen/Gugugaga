@@ -352,7 +352,7 @@ if page == "自定义筛选":
                     #     apply_strategy_to_state(loaded)
                     #     st.session_state["loaded_strategy_name"] = selected
                     #     st.rerun()
-                    # loaded_filters = load_strategy(current_user, selected)
+                    loaded_filters = load_strategy(current_user, selected)
                     if loaded_filters:
                         # 不要直接调用 apply_strategy_to_state
                         # 而是把它暂存到另一个 key
