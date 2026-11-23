@@ -109,6 +109,8 @@ EXTRA_LABELS = {
     "pre_close": "昨收(元)",
     "stock_type": "证券类型",
     "state": "行情状态",
+    "ma20": "MA20",
+    "ma60": "MA60",
 }
 
 
@@ -254,7 +256,22 @@ def filter_stocks(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     return out[mask.fillna(False)].reset_index(drop=True)
 
 ###### 20261123 ma20/ma60
-
+# ---------- 历史日线 + MA ----------
+@st.cache_data(ttl=3600, show_spinner=False)
+def _hist_for_ma(code: str, days: int = 90) -> pd.DataFrame:
+    """拉单只股票近 days 天前复权日线，用于算 MA。"""
+    try:
+        df = ak.stock_zh_a_hist(
+            symbol=code, period="daily", adjust="qfq",
+            start_date=(pd.Timestamp.today() - pd.Timedelta(days=days)).strftime("%Y%m%d"),
+            end_date=pd.Timestamp.today().strftime("%Y%m%d"),
+        )
+        if df is None or df.empty:
+            return pd.DataFrame()
+        df = df.rename(columns={"收盘": "close"})[["close"]].dropna()
+        return df
+    except Exception:
+        return pd.DataFrame()
 
 def cal_ma(df: pd.DataFrame, ma_windows=(20, 60)) -> pd.DataFrame:
     """对候选池逐只拉日线，计算最新 MA20/MA60，合并回快照。"""
@@ -350,7 +367,8 @@ if page == "自定义筛选":
     if run:
         with st.spinner("正在加载行情数据并筛选，请稍候..."):
             df = add_pre_close(load_data())
-            result = filter_stocks(df, filters)
+            result_ = filter_stocks(df, filters)
+            result = cal_ma(result_)
         st.session_state["last_result"] = result
         st.session_state["last_total"] = len(df)
     
@@ -366,7 +384,7 @@ if page == "自定义筛选":
             show_cols = [
                 c for c in [
                     "code", "name", "zxj", "zdf", "hsl", "pe_ttm", "pn",
-                    "ltsz", "turnover", "zljlr", "pre_close",
+                    "ltsz", "turnover", "zljlr", "pre_close", "ma20", "ma60",
                 ] if c in result.columns
             ]
             display_df = to_display_df(result, show_cols)
