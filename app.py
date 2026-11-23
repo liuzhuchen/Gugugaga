@@ -258,11 +258,11 @@ def filter_stocks(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
 ###### 20261123 ma20/ma60
 # ---------- 历史日线 + MA ----------
 @st.cache_data(ttl=3600, show_spinner=False)
-def _hist_for_ma(code: str, days: int = 90) -> pd.DataFrame:
+def _hist_for_ma(code: str, days: int = 120) -> pd.DataFrame:
     """拉单只股票近 days 天前复权日线，用于算 MA。"""
     try:
-        df = ak.stock_zh_a_hist(
-            symbol=code, period="daily", adjust="qfq",
+        df = ak.stock_zh_a_hist_tx(
+            symbol=code, adjust="qfq",
             start_date=(pd.Timestamp.today() - pd.Timedelta(days=days)).strftime("%Y%m%d"),
             end_date=pd.Timestamp.today().strftime("%Y%m%d"),
         )
