@@ -305,15 +305,6 @@ page = st.sidebar.radio(
 )
 
 if page == "自定义筛选":
-    # ... 在侧边栏策略管理的“加载”按钮分支内 ...
-    if load_clicked:
-        loaded_filters = load_strategy(username, selected)
-        if loaded_filters:
-            # 不要直接调用 apply_strategy_to_state
-            # 而是把它暂存到另一个 key
-            st.session_state["pending_filters"] = loaded_filters
-            st.session_state["loaded_strategy_name"] = selected
-            st.rerun()  # 立即重跑，在控件渲染前应用
     
     # ---------- 在 render_filters() 调用之前，插入这段应用逻辑 ----------
     if "pending_filters" in st.session_state:
@@ -357,10 +348,17 @@ if page == "自定义筛选":
             with c_load:
                 if st.button("加载", key="btn_load_strategy"):
                     loaded = load_strategy(current_user, selected)
-                    if loaded:
-                        apply_strategy_to_state(loaded)
+                    # if loaded:
+                    #     apply_strategy_to_state(loaded)
+                    #     st.session_state["loaded_strategy_name"] = selected
+                    #     st.rerun()
+                    # loaded_filters = load_strategy(current_user, selected)
+                    if loaded_filters:
+                        # 不要直接调用 apply_strategy_to_state
+                        # 而是把它暂存到另一个 key
+                        st.session_state["pending_filters"] = loaded_filters
                         st.session_state["loaded_strategy_name"] = selected
-                        st.rerun()
+                        st.rerun()  # 立即重跑，在控件渲染前应用
             with c_del:
                 if st.button("删除", key="btn_delete_strategy"):
                     try:
