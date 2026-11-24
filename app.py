@@ -306,7 +306,7 @@ def add_ma(df: pd.DataFrame) -> pd.DataFrame:
     if "ma60_rate" in df.columns:
         df = df.drop(columns=["ma60_rate"])
     df["ma60_rate"] = ma60_rate
-    cols = [c for c in df.columns if c != "ma60_rate"]
+    # cols = [c for c in df.columns if c != "ma60_rate"]
     
     return df[cols + ["ma20_rate"] +  ["ma60_rate"]]
 
