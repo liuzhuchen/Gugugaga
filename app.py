@@ -296,8 +296,8 @@ def add_ma(df: pd.DataFrame) -> pd.DataFrame:
     zxj = pd.to_numeric(df["zxj"], errors="coerce")
     ma20 = pd.to_numeric(df["ma20"], errors="coerce")
     ma60 = pd.to_numeric(df["ma60"], errors="coerce")
-    ma20_rate = ((zxj - ma20)/ma20).round(2).where(zxj > 0, np.nan)
-    ma60_rate = ((zxj - ma60)/ma60).round(2).where(zxj > 0, np.nan)
+    ma20_rate = ((zxj - ma20)/ma20*100).round(2).where(zxj > 0, np.nan)
+    ma60_rate = ((zxj - ma60)/ma60*100).round(2).where(zxj > 0, np.nan)
     if "ma20_rate" in df.columns:
         df = df.drop(columns=["ma20_rate"])
     df["ma20_rate"] = ma20_rate
