@@ -111,6 +111,8 @@ EXTRA_LABELS = {
     "state": "行情状态",
     "ma20": "MA20",
     "ma60": "MA60",
+    "ma20_rate": "对比MA20",
+    "ma60_rate": "对比MA60",
 }
 
 
@@ -432,7 +434,7 @@ if page == "自定义筛选":
             show_cols = [
                 c for c in [
                     "code", "name", "zxj", "zdf", "hsl",
-                    "pre_close", "ma20", "ma60",
+                    "pre_close", "ma20", "ma60", "ma20_rate", "ma60_rate",
                 ] if c in result.columns
             ]
             display_df = to_display_df(result, show_cols)
