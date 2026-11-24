@@ -289,6 +289,25 @@ def cal_ma(df: pd.DataFrame, ma_windows=(20, 60)) -> pd.DataFrame:
         })
     return df.merge(pd.DataFrame(ma_records), on="code", how="left")
 
+def add_ma(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    zxj = pd.to_numeric(df["zxj"], errors="coerce")
+    ma20 = pd.to_numeric(df["ma20"], errors="coerce")
+    ma60 = pd.to_numeric(df["ma60"], errors="coerce")
+    ma20_rate = ((zxj - ma20)/ma20).round(2).where(zxj > 0, np.nan)
+    ma60_rate = ((zxj - ma60)/ma60).round(2).where(zxj > 0, np.nan)
+    if "ma20_rate" in df.columns:
+        df = df.drop(columns=["ma20_rate"])
+    df["ma20_rate"] = ma20_rate
+    cols = [c for c in df.columns if c != "ma20_rate"]
+
+    if "ma60_rate" in df.columns:
+        df = df.drop(columns=["ma60_rate"])
+    df["ma60_rate"] = ma60_rate
+    cols = [c for c in df.columns if c != "ma60_rate"]
+    
+    return df[cols + ["ma20_rate"] +  ["ma60_rate"]]
+
 # ========== 6. 界面主流程 ==========
 st.title("选股筛选器")
 st.sidebar.caption(f"当前用户：{current_name}")
@@ -388,8 +407,9 @@ if page == "自定义筛选":
     if run:
         with st.spinner("正在加载行情数据并筛选，请稍候..."):
             df = add_pre_close(load_data())
-            result_ = filter_stocks(df, filters)
-            result = cal_ma(result_)
+            result = filter_stocks(df, filters)
+            result = cal_ma(result)
+            result = add_ma(result)
         st.session_state["last_result"] = result
         st.session_state["last_total"] = len(df)
     
@@ -402,10 +422,17 @@ if page == "自定义筛选":
         if result.empty:
             st.info("没有股票满足当前条件，请放宽筛选范围。")
         else:
+            # show_cols = [
+            #     c for c in [
+            #         "code", "name", "zxj", "zdf", "hsl", "pe_ttm", "pn",
+            #         "ltsz", "turnover", "zljlr", "pre_close", "ma20", "ma60",
+            #     ] if c in result.columns
+            # ]
+
             show_cols = [
                 c for c in [
-                    "code", "name", "zxj", "zdf", "hsl", "pe_ttm", "pn",
-                    "ltsz", "turnover", "zljlr", "pre_close", "ma20", "ma60",
+                    "code", "name", "zxj", "zdf", "hsl",
+                    "pre_close", "ma20", "ma60",
                 ] if c in result.columns
             ]
             display_df = to_display_df(result, show_cols)
